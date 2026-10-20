@@ -15,7 +15,7 @@
 
 ### User Story 1 - Upload a Work Document (Priority: P1)
 
-An employee uploads one or more work-related files, gives each a title and category, and can tell whether the upload succeeded. The application makes a file available only after it passes security checks.
+An employee uploads one or more work-related files, gives each a title and category, and can tell whether the upload succeeded. The application rejects invalid or confirmed infected files and warns when it cannot complete a malware scan.
 
 **Why this priority**: Upload is the essential action that puts documents into the shared workspace and addresses the current problem of scattered files.
 
