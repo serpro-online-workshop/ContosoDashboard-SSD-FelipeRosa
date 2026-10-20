@@ -1,0 +1,94 @@
+@page "/documents/reports"
+@using ContosoDashboard.Services
+@using Microsoft.AspNetCore.Authorization
+@attribute [Authorize(Policy = "Administrator")]
+@inject IDocumentService DocumentService
+@inject AuthenticationStateProvider AuthenticationStateProvider
+
+<PageTitle>Document Reports - ContosoDashboard</PageTitle>
+
+<div class="container-fluid">
+    <div class="d-flex align-items-center justify-content-between mb-4">
+        <h1>Document Reports</h1>
+        <a class="btn btn-outline-secondary" href="/documents">Documents</a>
+    </div>
+
+    @if (report is null)
+    {
+        <p><em>Loading report data...</em></p>
+    }
+    else
+    {
+        <div class="row g-4">
+            <section class="col-lg-4" aria-labelledby="file-types-heading">
+                <h2 id="file-types-heading" class="h4">Document types</h2>
+                @if (report.FileTypes.Count == 0)
+                {
+                    <p class="text-muted">No document activity.</p>
+                }
+                else
+                {
+                    <table class="table table-sm">
+                        <thead><tr><th>File type</th><th class="text-end">Documents</th></tr></thead>
+                        <tbody>
+                            @foreach (var item in report.FileTypes)
+                            {
+                                <tr><td>@item.FileType</td><td class="text-end">@item.Count</td></tr>
+                            }
+                        </tbody>
+                    </table>
+                }
+            </section>
+
+            <section class="col-lg-4" aria-labelledby="uploaders-heading">
+                <h2 id="uploaders-heading" class="h4">Uploaders</h2>
+                @if (report.Uploaders.Count == 0)
+                {
+                    <p class="text-muted">No document activity.</p>
+                }
+                else
+                {
+                    <table class="table table-sm">
+                        <thead><tr><th>Employee</th><th class="text-end">Documents</th></tr></thead>
+                        <tbody>
+                            @foreach (var item in report.Uploaders)
+                            {
+                                <tr><td>@item.DisplayName</td><td class="text-end">@item.Count</td></tr>
+                            }
+                        </tbody>
+                    </table>
+                }
+            </section>
+
+            <section class="col-lg-4" aria-labelledby="activity-heading">
+                <h2 id="activity-heading" class="h4">Access patterns</h2>
+                @if (report.AccessPatterns.Count == 0)
+                {
+                    <p class="text-muted">No recorded document activity.</p>
+                }
+                else
+                {
+                    <table class="table table-sm">
+                        <thead><tr><th>Activity</th><th class="text-end">Events</th></tr></thead>
+                        <tbody>
+                            @foreach (var item in report.AccessPatterns.OrderBy(item => item.ActivityType))
+                            {
+                                <tr><td>@item.ActivityType</td><td class="text-end">@item.Count</td></tr>
+                            }
+                        </tbody>
+                    </table>
+                }
+            </section>
+        </div>
+    }
+</div>
+
+@code {
+    private DocumentReportResult? report;
+
+    protected override async Task OnInitializedAsync()
+    {
+        var actor = (await AuthenticationStateProvider.GetAuthenticationStateAsync()).User;
+        report = await DocumentService.GetReportsAsync(actor);
+    }
+}

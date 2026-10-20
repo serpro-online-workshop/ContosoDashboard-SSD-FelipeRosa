@@ -5,6 +5,7 @@
 @using System.Security.Claims
 @attribute [Authorize]
 @inject IProjectService ProjectService
+@inject IDocumentService DocumentService
 @inject NavigationManager NavigationManager
 @inject AuthenticationStateProvider AuthenticationStateProvider
 
@@ -151,6 +152,46 @@
                         }
                     </div>
                 </div>
+
+                <div class="card mt-4">
+                    <div class="card-header">
+                        <h5 class="mb-0">Project Documents</h5>
+                    </div>
+                    <div class="card-body">
+                        @if (projectDocuments.Count == 0)
+                        {
+                            <p class="text-muted mb-0">No project documents are available.</p>
+                        }
+                        else
+                        {
+                            <div class="table-responsive">
+                                <table class="table table-hover mb-0">
+                                    <thead>
+                                        <tr><th>Title</th><th>Category</th><th>Uploaded</th><th>Size</th><th>Actions</th></tr>
+                                    </thead>
+                                    <tbody>
+                                        @foreach (var document in projectDocuments)
+                                        {
+                                            <tr>
+                                                <td>@document.Title</td>
+                                                <td>@document.Category</td>
+                                                <td>@document.UploadedAtUtc.ToLocalTime().ToString("d")</td>
+                                                <td>@document.FileSizeBytes.ToString("N0") B</td>
+                                                <td>
+                                                    <a href="/documents/@document.DocumentId/download">Download</a>
+                                                    @if (document.FileType is "application/pdf" or "image/jpeg" or "image/png")
+                                                    {
+                                                        <span> · <a href="/documents/@document.DocumentId/preview" target="_blank" rel="noopener">Preview</a></span>
+                                                    }
+                                                </td>
+                                            </tr>
+                                        }
+                                    </tbody>
+                                </table>
+                            </div>
+                        }
+                    </div>
+                </div>
             </div>
 
             <div class="col-md-4">
@@ -237,6 +278,7 @@
     public int ProjectId { get; set; }
 
     private Project? project;
+    private List<DocumentListItem> projectDocuments = [];
     private int currentUserId = 0;
 
     protected override async Task OnInitializedAsync()
@@ -253,6 +295,11 @@
         if (currentUserId > 0)
         {
             project = await ProjectService.GetProjectByIdAsync(ProjectId, currentUserId);
+            if (project is not null)
+            {
+                projectDocuments = (await DocumentService.GetProjectDocumentsAsync(
+                    user, ProjectId)).ToList();
+            }
         }
         
         if (project == null)

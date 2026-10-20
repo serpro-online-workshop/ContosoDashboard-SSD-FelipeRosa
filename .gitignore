@@ -3,6 +3,12 @@
 ##
 ## Get latest from https://github.com/github/gitignore/blob/master/VisualStudio.gitignore
 
+# ContosoDashboard local data and private document uploads
+ContosoDashboard/ContosoDashboard.db
+ContosoDashboard/ContosoDashboard.db-shm
+ContosoDashboard/ContosoDashboard.db-wal
+ContosoDashboard/AppData/uploads/
+
 # User-specific files
 *.rsuser
 *.suo

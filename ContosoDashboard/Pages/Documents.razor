@@ -1,0 +1,796 @@
+@page "/documents"
+@using System.ComponentModel.DataAnnotations
+@using System.Globalization
+@using System.Security.Claims
+@using ContosoDashboard.Models
+@using ContosoDashboard.Services
+@using Microsoft.AspNetCore.Authorization
+@using Microsoft.AspNetCore.Components.Forms
+@using Microsoft.JSInterop
+@attribute [Authorize]
+@inject IDocumentService DocumentService
+@inject IProjectService ProjectService
+@inject IUserService UserService
+@inject AuthenticationStateProvider AuthenticationStateProvider
+@inject IJSRuntime JS
+
+<PageTitle>Documents - ContosoDashboard</PageTitle>
+
+<div class="container-fluid">
+    <div class="row mb-4">
+        <div class="col">
+            <h1>Documents</h1>
+        </div>
+    </div>
+
+    <div class="row g-4">
+        <section class="col-xl-5" aria-labelledby="upload-heading">
+            <h2 id="upload-heading" class="h4">Upload documents</h2>
+            <EditForm Model="form" OnValidSubmit="UploadSelectedFilesAsync">
+                <DataAnnotationsValidator />
+                <ValidationSummary />
+
+                <div class="mb-3">
+                    <label class="form-label" for="document-files">Files</label>
+                    <InputFile id="document-files" @key="fileInputKey" OnChange="OnFilesSelected" multiple class="form-control" />
+                    <div class="form-text">Up to 10 files per batch; 25 MB maximum per file.</div>
+                </div>
+
+                <div class="mb-3">
+                    <label class="form-label" for="document-title">Title</label>
+                    <InputText id="document-title" class="form-control" @bind-Value="form.Title" maxlength="255" />
+                    <ValidationMessage For="() => form.Title" />
+                </div>
+
+                <div class="mb-3">
+                    <label class="form-label" for="document-description">Description</label>
+                    <InputTextArea id="document-description" class="form-control" @bind-Value="form.Description" maxlength="2000" />
+                </div>
+
+                <div class="mb-3">
+                    <label class="form-label" for="document-category">Category</label>
+                    <InputSelect id="document-category" class="form-select" @bind-Value="form.Category">
+                        <option value="">Select a category</option>
+                        @foreach (var category in DocumentCategories.Allowed)
+                        {
+                            <option value="@category">@category</option>
+                        }
+                    </InputSelect>
+                    <ValidationMessage For="() => form.Category" />
+                </div>
+
+                <div class="mb-3">
+                    <label class="form-label" for="document-project">Project (optional)</label>
+                    <InputSelect id="document-project" class="form-select" @bind-Value="form.ProjectId">
+                        <option value="">Personal / no project</option>
+                        @foreach (var project in projects)
+                        {
+                            <option value="@project.ProjectId">@project.Name</option>
+                        }
+                    </InputSelect>
+                </div>
+
+                <div class="mb-3">
+                    <label class="form-label" for="document-tags">Tags (comma-separated)</label>
+                    <InputText id="document-tags" class="form-control" @bind-Value="form.TagsText" maxlength="1600" />
+                </div>
+
+                @if (showUnscannedConsent)
+                {
+                    <div class="alert alert-warning" role="alert">
+                        <strong>This file could not be confirmed clean.</strong>
+                        Malware scanning was unavailable or inconclusive. Continuing may store an unscanned file.
+                        <div class="form-check mt-2">
+                            <InputCheckbox id="allow-unscanned" class="form-check-input" @bind-Value="form.AllowUnscanned" />
+                            <label class="form-check-label" for="allow-unscanned">Continue with this upload without a clean scan result</label>
+                        </div>
+                    </div>
+                }
+                else
+                {
+                    <p class="small text-muted">Files are checked locally when a scanner is configured. If no clean result is available, the application asks before continuing.</p>
+                }
+
+                @if (uploading)
+                {
+                    <div class="mb-3" aria-live="polite">
+                        <label class="form-label">@progressFile (@Math.Round(progressPercent)% )</label>
+                        <progress class="w-100" value="@progressPercent" max="100">@Math.Round(progressPercent)%</progress>
+                    </div>
+                }
+
+                <button type="submit" class="btn btn-primary" disabled="@(uploading || selectedFiles.Count == 0)">
+                    @(uploading ? "Uploading..." : "Upload selected files")
+                </button>
+            </EditForm>
+
+            @if (results.Count > 0)
+            {
+                <ul class="list-group mt-3" aria-live="polite">
+                    @foreach (var result in results)
+                    {
+                        <li class="list-group-item @(result.Succeeded ? "list-group-item-success" : "list-group-item-warning")">
+                            <strong>@result.FileName</strong>: @result.Message
+                        </li>
+                    }
+                </ul>
+            }
+        </section>
+
+        <section class="col-xl-7" aria-labelledby="my-documents-heading">
+            <div class="d-flex align-items-center justify-content-between mb-2">
+                <h2 id="my-documents-heading" class="h4 mb-0">My Documents</h2>
+                <button class="btn btn-outline-secondary btn-sm" @onclick="LoadDocumentsAsync" disabled="loadingDocuments">
+                    <i class="bi bi-arrow-clockwise" aria-hidden="true"></i> Refresh
+                </button>
+            </div>
+
+            <div class="row g-2 mb-3">
+                <div class="col-md-6">
+                    <label class="form-label" for="document-search">Search</label>
+                    <InputText id="document-search" class="form-control" @bind-Value="searchText" placeholder="Title, description, tag, uploader, project" />
+                </div>
+                <div class="col-md-6">
+                    <label class="form-label" for="document-sort">Sort by</label>
+                    <InputSelect id="document-sort" class="form-select" @bind-Value="sortBy">
+                        <option value="@DocumentSortField.UploadedAt">Upload date</option>
+                        <option value="@DocumentSortField.Title">Title</option>
+                        <option value="@DocumentSortField.Category">Category</option>
+                        <option value="@DocumentSortField.FileSize">File size</option>
+                    </InputSelect>
+                </div>
+                <div class="col-md-4">
+                    <label class="form-label" for="document-category-filter">Category</label>
+                    <InputSelect id="document-category-filter" class="form-select" @bind-Value="filterCategory">
+                        <option value="">All categories</option>
+                        @foreach (var category in DocumentCategories.Allowed)
+                        {
+                            <option value="@category">@category</option>
+                        }
+                    </InputSelect>
+                </div>
+                <div class="col-md-4">
+                    <label class="form-label" for="document-project-filter">Project</label>
+                    <InputSelect id="document-project-filter" class="form-select" @bind-Value="filterProjectId">
+                        <option value="">All projects</option>
+                        @foreach (var project in projects)
+                        {
+                            <option value="@project.ProjectId">@project.Name</option>
+                        }
+                    </InputSelect>
+                </div>
+                <div class="col-md-4">
+                    <label class="form-label" for="document-page-size">Page size</label>
+                    <InputSelect id="document-page-size" class="form-select" @bind-Value="pageSize">
+                        <option value="25">25</option>
+                        <option value="50">50</option>
+                        <option value="100">100</option>
+                    </InputSelect>
+                </div>
+                <div class="col-12 d-flex gap-2">
+                    <button class="btn btn-primary btn-sm" @onclick="ApplySearchAsync">Apply</button>
+                    <button class="btn btn-outline-secondary btn-sm" @onclick="ClearSearchAsync">Clear</button>
+                </div>
+            </div>
+
+            @if (loadingDocuments)
+            {
+                <p><em>Loading documents...</em></p>
+            }
+            else if (documents.Count == 0)
+            {
+                <p class="text-muted">No documents uploaded yet.</p>
+            }
+            else
+            {
+                <div class="table-responsive">
+                    <table class="table table-hover align-middle">
+                        <thead>
+                            <tr>
+                                <th scope="col">Title</th>
+                                <th scope="col">Category</th>
+                                <th scope="col">Uploaded</th>
+                                <th scope="col">Size</th>
+                                <th scope="col">Project</th>
+                                <th scope="col">File</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            @foreach (var document in documents)
+                            {
+                                <tr>
+                                    <td>
+                                        <strong>@document.Title</strong>
+                                        <div class="small text-muted">@document.UploaderName</div>
+                                    </td>
+                                    <td>@document.Category</td>
+                                    <td>@document.UploadedAtUtc.ToLocalTime().ToString("g")</td>
+                                    <td>@FormatSize(document.FileSizeBytes)</td>
+                                    <td>@(document.ProjectName ?? "Personal")</td>
+                                    <td>
+                                        <a href="/documents/@document.DocumentId/download">Download</a>
+                                        @if (document.FileType is "application/pdf" or "image/jpeg" or "image/png")
+                                        {
+                                            <span> · <a href="/documents/@document.DocumentId/preview" target="_blank" rel="noopener">Preview</a></span>
+                                        }
+                                        <button type="button" class="btn btn-link btn-sm" @onclick="() => OpenManagementAsync(document.DocumentId)">Manage</button>
+                                    </td>
+                                </tr>
+                            }
+                        </tbody>
+                    </table>
+                </div>
+                <div class="d-flex align-items-center justify-content-between mt-2">
+                    <span class="text-muted small">@totalDocumentCount documents · Page @currentPage</span>
+                    <div class="btn-group btn-group-sm" role="group" aria-label="Document list pages">
+                        <button class="btn btn-outline-secondary" @onclick="PreviousPageAsync" disabled="@(currentPage <= 1)">Previous</button>
+                        <button class="btn btn-outline-secondary" @onclick="NextPageAsync" disabled="@(currentPage * pageSize >= totalDocumentCount)">Next</button>
+                    </div>
+                </div>
+            }
+
+            @if (activeDocument is not null)
+            {
+                <div class="card mt-4">
+                    <div class="card-header d-flex justify-content-between align-items-center">
+                        <h3 class="h5 mb-0">Manage: @activeDocument.Title</h3>
+                        <button type="button" class="btn-close" aria-label="Close" @onclick="CloseManagement"></button>
+                    </div>
+                    <div class="card-body">
+                        <EditForm Model="editForm" OnValidSubmit="SaveMetadataAsync">
+                            <DataAnnotationsValidator />
+                            <div class="row g-2">
+                                <div class="col-md-6">
+                                    <label class="form-label" for="edit-title">Title</label>
+                                    <InputText id="edit-title" class="form-control" @bind-Value="editForm.Title" maxlength="255" />
+                                </div>
+                                <div class="col-md-6">
+                                    <label class="form-label" for="edit-category">Category</label>
+                                    <InputSelect id="edit-category" class="form-select" @bind-Value="editForm.Category">
+                                        @foreach (var category in DocumentCategories.Allowed)
+                                        {
+                                            <option value="@category">@category</option>
+                                        }
+                                    </InputSelect>
+                                </div>
+                                <div class="col-12">
+                                    <label class="form-label" for="edit-description">Description</label>
+                                    <InputTextArea id="edit-description" class="form-control" @bind-Value="editForm.Description" maxlength="2000" />
+                                </div>
+                                <div class="col-12">
+                                    <label class="form-label" for="edit-tags">Tags (comma-separated)</label>
+                                    <InputText id="edit-tags" class="form-control" @bind-Value="editForm.TagsText" maxlength="1600" />
+                                </div>
+                                <div class="col-12 d-flex gap-2">
+                                    <button type="submit" class="btn btn-primary btn-sm">Save metadata</button>
+                                    <button type="button" class="btn btn-outline-danger btn-sm" @onclick="DeleteActiveDocumentAsync">Delete permanently</button>
+                                </div>
+                            </div>
+                        </EditForm>
+
+                        <hr />
+                        <h4 class="h6">Replace file</h4>
+                        <InputFile @key="replacementInputKey" OnChange="OnReplacementSelected" class="form-control mb-2" />
+                        @if (replacementNeedsConsent)
+                        {
+                            <div class="alert alert-warning" role="alert">
+                                Scanning was unavailable or inconclusive. Confirm to retry and allow the replacement without a clean scan result.
+                                <div class="form-check mt-2">
+                                    <InputCheckbox id="allow-replacement-unscanned" class="form-check-input" @bind-Value="allowUnscannedReplacement" />
+                                    <label class="form-check-label" for="allow-replacement-unscanned">Continue without a clean scan result</label>
+                                </div>
+                            </div>
+                        }
+                        <button type="button" class="btn btn-outline-primary btn-sm" @onclick="ReplaceActiveFileAsync" disabled="@(replacementFile is null)">Replace file</button>
+
+                        <hr />
+                        <h4 class="h6">Share</h4>
+                        <div class="row g-2 align-items-end">
+                            <div class="col-md-5">
+                                <label class="form-label" for="share-user">User</label>
+                                <InputSelect id="share-user" class="form-select" @bind-Value="shareForm.RecipientUserId">
+                                    <option value="">Select a user</option>
+                                    @foreach (var user in users)
+                                    {
+                                        <option value="@user.UserId">@user.DisplayName</option>
+                                    }
+                                </InputSelect>
+                            </div>
+                            <div class="col-md-auto"><button type="button" class="btn btn-outline-primary btn-sm" @onclick="ShareWithUserAsync">Share with user</button></div>
+                            <div class="col-md-5">
+                                <label class="form-label" for="share-department">Department</label>
+                                <InputSelect id="share-department" class="form-select" @bind-Value="shareForm.RecipientDepartment">
+                                    <option value="">Select a department</option>
+                                    @foreach (var department in departments)
+                                    {
+                                        <option value="@department">@department</option>
+                                    }
+                                </InputSelect>
+                            </div>
+                            <div class="col-md-auto"><button type="button" class="btn btn-outline-primary btn-sm" @onclick="ShareWithDepartmentAsync">Share with department</button></div>
+                        </div>
+
+                        @if (activeShares.Count > 0)
+                        {
+                            <h4 class="h6 mt-3">Active shares</h4>
+                            <ul class="list-group">
+                                @foreach (var share in activeShares)
+                                {
+                                    <li class="list-group-item d-flex justify-content-between align-items-center">
+                                        <span>@(share.RecipientUser?.DisplayName ?? share.RecipientDepartment)</span>
+                                        <button type="button" class="btn btn-outline-secondary btn-sm" @onclick="() => RevokeShareAsync(share.DocumentShareId)">Revoke</button>
+                                    </li>
+                                }
+                            </ul>
+                        }
+                        @if (!string.IsNullOrEmpty(managementMessage))
+                        {
+                            <p class="mt-3 mb-0" role="status">@managementMessage</p>
+                        }
+                    </div>
+                </div>
+            }
+        </section>
+    </div>
+</div>
+
+@code {
+    private const long MaxFileSizeBytes = 26_214_400;
+    private const int MaxFilesPerBatch = 10;
+    private readonly UploadForm form = new();
+    private readonly List<IBrowserFile> selectedFiles = [];
+    private readonly List<UploadResultItem> results = [];
+    private List<Project> projects = [];
+    private List<DocumentListItem> documents = [];
+    private string searchText = string.Empty;
+    private string filterCategory = string.Empty;
+    private int? filterProjectId;
+    private DocumentSortField sortBy = DocumentSortField.UploadedAt;
+    private int pageSize = 25;
+    private int currentPage = 1;
+    private int totalDocumentCount;
+    private int currentUserId;
+    private List<User> users = [];
+    private List<string> departments = [];
+    private Document? activeDocument;
+    private List<DocumentShare> activeShares = [];
+    private DocumentEditForm editForm = new();
+    private DocumentShareForm shareForm = new();
+    private IBrowserFile? replacementFile;
+    private bool allowUnscannedReplacement;
+    private bool replacementNeedsConsent;
+    private Guid replacementInputKey = Guid.NewGuid();
+    private string managementMessage = string.Empty;
+    private bool loadingDocuments;
+    private bool uploading;
+    private bool showUnscannedConsent;
+    private double progressPercent;
+    private string progressFile = string.Empty;
+    private Guid fileInputKey = Guid.NewGuid();
+
+    protected override async Task OnInitializedAsync()
+    {
+        var principal = (await AuthenticationStateProvider.GetAuthenticationStateAsync()).User;
+        if (int.TryParse(principal.FindFirstValue(ClaimTypes.NameIdentifier), out var userId))
+        {
+            currentUserId = userId;
+            projects = await ProjectService.GetUserProjectsAsync(currentUserId);
+            users = (await UserService.GetAllUsersAsync()).Where(user => user.UserId != currentUserId).ToList();
+            departments = users.Select(user => user.Department).Where(department => !string.IsNullOrWhiteSpace(department))
+                .Select(department => department!).Distinct(StringComparer.Ordinal).Order().ToList();
+            await LoadDocumentsAsync();
+        }
+    }
+
+    private void OnFilesSelected(InputFileChangeEventArgs args)
+    {
+        results.Clear();
+        showUnscannedConsent = false;
+        try
+        {
+            selectedFiles.Clear();
+            selectedFiles.AddRange(args.GetMultipleFiles(MaxFilesPerBatch));
+            foreach (var file in selectedFiles)
+            {
+                if (file.Size <= 0 || file.Size > MaxFileSizeBytes)
+                {
+                    results.Add(new UploadResultItem(file.Name, false, "Rejected: file must be between 1 byte and 25 MB."));
+                }
+            }
+        }
+        catch (InvalidOperationException)
+        {
+            selectedFiles.Clear();
+            results.Add(new UploadResultItem("Selection", false, $"Select no more than {MaxFilesPerBatch} files per batch."));
+        }
+    }
+
+    private async Task UploadSelectedFilesAsync()
+    {
+        if (currentUserId <= 0 || selectedFiles.Count == 0)
+        {
+            return;
+        }
+        if (!DocumentCategories.Allowed.Contains(form.Category, StringComparer.Ordinal))
+        {
+            results.Add(new UploadResultItem("Metadata", false, "Choose a valid category."));
+            return;
+        }
+
+        uploading = true;
+        showUnscannedConsent = false;
+        var unscannedConfirmationRequired = false;
+        var unscannedFiles = new List<IBrowserFile>();
+        try
+        {
+            foreach (var file in selectedFiles.ToArray())
+            {
+                if (file.Size <= 0 || file.Size > MaxFileSizeBytes)
+                {
+                    continue;
+                }
+
+                progressFile = Path.GetFileName(file.Name);
+                progressPercent = 0;
+                var progress = new Progress<long>(bytes =>
+                {
+                    progressPercent = file.Size == 0 ? 0 : Math.Min(100, bytes * 100d / file.Size);
+                    StateHasChanged();
+                });
+                var request = new DocumentUploadRequest(
+                    form.Title,
+                    form.Description,
+                    form.Category,
+                    form.ProjectId,
+                    null,
+                    form.TagsText.Split(',', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries),
+                    form.AllowUnscanned);
+
+                await using var stream = file.OpenReadStream(MaxFileSizeBytes);
+                var operation = await DocumentService.UploadAsync(
+                    (await AuthenticationStateProvider.GetAuthenticationStateAsync()).User,
+                    request,
+                    stream,
+                    file.Name,
+                    file.ContentType,
+                    progress: progress);
+
+                var displayName = Path.GetFileName(file.Name);
+                if (operation.Succeeded)
+                {
+                    results.Add(new UploadResultItem(displayName, true,
+                        operation.ScanWarning ? "Uploaded with an unscanned-file warning." : "Uploaded successfully."));
+                }
+                else if (operation.ScanWarning)
+                {
+                    unscannedConfirmationRequired = true;
+                    unscannedFiles.Add(file);
+                    results.Add(new UploadResultItem(displayName, false,
+                        "Scanning was unavailable or inconclusive. Review the warning and explicitly opt in to retry."));
+                }
+                else
+                {
+                    results.Add(new UploadResultItem(displayName, false, FriendlyError(operation.ErrorCode)));
+                }
+            }
+
+            if (unscannedConfirmationRequired)
+            {
+                showUnscannedConsent = true;
+                form.AllowUnscanned = false;
+                selectedFiles.Clear();
+                selectedFiles.AddRange(unscannedFiles);
+            }
+            if (results.Any(result => result.Succeeded))
+            {
+                await LoadDocumentsAsync();
+            }
+            if (!unscannedConfirmationRequired && results.Any(result => result.Succeeded))
+            {
+                selectedFiles.Clear();
+                fileInputKey = Guid.NewGuid();
+                form.AllowUnscanned = false;
+            }
+        }
+        catch (Exception exception) when (exception is IOException or InvalidOperationException)
+        {
+            results.Add(new UploadResultItem("Upload", false, "The upload could not be completed. Verify the file and try again."));
+        }
+        finally
+        {
+            uploading = false;
+            progressPercent = 0;
+        }
+    }
+
+    private async Task LoadDocumentsAsync()
+    {
+        if (currentUserId <= 0)
+        {
+            return;
+        }
+
+        loadingDocuments = true;
+        try
+        {
+            var result = await DocumentService.SearchAsync(
+                (await AuthenticationStateProvider.GetAuthenticationStateAsync()).User,
+                new DocumentSearchOptions(
+                    SearchText: searchText,
+                    Category: string.IsNullOrWhiteSpace(filterCategory) ? null : filterCategory,
+                    ProjectId: filterProjectId,
+                    SortBy: sortBy,
+                    Page: currentPage,
+                    PageSize: pageSize,
+                    OwnedOnly: true));
+            documents = result.Items.ToList();
+            totalDocumentCount = result.TotalCount;
+        }
+        finally
+        {
+            loadingDocuments = false;
+        }
+    }
+
+    private async Task ApplySearchAsync()
+    {
+        currentPage = 1;
+        await LoadDocumentsAsync();
+    }
+
+    private async Task ClearSearchAsync()
+    {
+        searchText = string.Empty;
+        filterCategory = string.Empty;
+        filterProjectId = null;
+        sortBy = DocumentSortField.UploadedAt;
+        currentPage = 1;
+        await LoadDocumentsAsync();
+    }
+
+    private async Task PreviousPageAsync()
+    {
+        if (currentPage > 1)
+        {
+            currentPage--;
+            await LoadDocumentsAsync();
+        }
+    }
+
+    private async Task NextPageAsync()
+    {
+        if (currentPage * pageSize < totalDocumentCount)
+        {
+            currentPage++;
+            await LoadDocumentsAsync();
+        }
+    }
+
+    private async Task OpenManagementAsync(int documentId)
+    {
+        var actor = (await AuthenticationStateProvider.GetAuthenticationStateAsync()).User;
+        activeDocument = await DocumentService.GetAccessibleDocumentAsync(actor, documentId);
+        if (activeDocument is null || activeDocument.UploadedByUserId != currentUserId)
+        {
+            activeDocument = null;
+            managementMessage = "You cannot manage this document.";
+            return;
+        }
+
+        activeShares = (await DocumentService.GetDocumentSharesAsync(actor, documentId)).ToList();
+        editForm = new DocumentEditForm
+        {
+            Title = activeDocument.Title,
+            Category = activeDocument.Category,
+            Description = activeDocument.Description,
+            TagsText = string.Join(", ", activeDocument.Tags.Select(tag => tag.Tag))
+        };
+        shareForm = new DocumentShareForm();
+        replacementFile = null;
+        replacementNeedsConsent = false;
+        managementMessage = string.Empty;
+    }
+
+    private void CloseManagement()
+    {
+        activeDocument = null;
+        activeShares.Clear();
+        replacementFile = null;
+    }
+
+    private async Task SaveMetadataAsync()
+    {
+        if (activeDocument is null)
+        {
+            return;
+        }
+        var actor = (await AuthenticationStateProvider.GetAuthenticationStateAsync()).User;
+        var updated = await DocumentService.UpdateMetadataAsync(actor, activeDocument.DocumentId, editForm.Title,
+            editForm.Description, editForm.Category,
+            editForm.TagsText.Split(',', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries));
+        managementMessage = updated ? "Document information updated." : "The document could not be updated.";
+        if (updated)
+        {
+            await LoadDocumentsAsync();
+            await RefreshActiveDocumentAsync(actor);
+        }
+    }
+
+    private void OnReplacementSelected(InputFileChangeEventArgs args)
+    {
+        replacementFile = args.File;
+        replacementNeedsConsent = false;
+        allowUnscannedReplacement = false;
+        managementMessage = string.Empty;
+    }
+
+    private async Task ReplaceActiveFileAsync()
+    {
+        if (activeDocument is null || replacementFile is null)
+        {
+            return;
+        }
+        if (replacementFile.Size <= 0 || replacementFile.Size > MaxFileSizeBytes)
+        {
+            managementMessage = "Replacement must be between 1 byte and 25 MB.";
+            return;
+        }
+
+        await using var stream = replacementFile.OpenReadStream(MaxFileSizeBytes);
+        var result = await DocumentService.ReplaceFileAsync(
+            (await AuthenticationStateProvider.GetAuthenticationStateAsync()).User,
+            activeDocument.DocumentId,
+            stream,
+            replacementFile.Name,
+            replacementFile.ContentType,
+            allowUnscannedReplacement);
+        if (result.ScanWarning && !result.Succeeded)
+        {
+            replacementNeedsConsent = true;
+            managementMessage = "The replacement was not saved. Review and confirm the scan warning to retry.";
+            return;
+        }
+
+        managementMessage = result.Succeeded
+            ? result.ScanWarning ? "File replaced with an unscanned-file warning." : "File replaced successfully."
+            : FriendlyError(result.ErrorCode);
+        if (result.Succeeded)
+        {
+            replacementFile = null;
+            replacementInputKey = Guid.NewGuid();
+            replacementNeedsConsent = false;
+            await LoadDocumentsAsync();
+            await RefreshActiveDocumentAsync((await AuthenticationStateProvider.GetAuthenticationStateAsync()).User);
+        }
+    }
+
+    private async Task DeleteActiveDocumentAsync()
+    {
+        if (activeDocument is null || !await JS.InvokeAsync<bool>("confirm", $"Permanently delete '{activeDocument.Title}'?"))
+        {
+            return;
+        }
+        var actor = (await AuthenticationStateProvider.GetAuthenticationStateAsync()).User;
+        var deleted = await DocumentService.DeleteAsync(actor, activeDocument.DocumentId);
+        managementMessage = deleted ? "Document deleted." : "The document could not be deleted.";
+        if (deleted)
+        {
+            activeDocument = null;
+            await LoadDocumentsAsync();
+        }
+    }
+
+    private async Task ShareWithUserAsync()
+    {
+        if (activeDocument is null || !shareForm.RecipientUserId.HasValue)
+        {
+            return;
+        }
+        var actor = (await AuthenticationStateProvider.GetAuthenticationStateAsync()).User;
+        var shared = await DocumentService.ShareAsync(actor, activeDocument.DocumentId,
+            new DocumentShareRequest(shareForm.RecipientUserId, null));
+        managementMessage = shared ? "Document shared with the selected user." : "The share could not be created.";
+        await RefreshActiveSharesAsync(actor);
+    }
+
+    private async Task ShareWithDepartmentAsync()
+    {
+        if (activeDocument is null || string.IsNullOrWhiteSpace(shareForm.RecipientDepartment))
+        {
+            return;
+        }
+        var actor = (await AuthenticationStateProvider.GetAuthenticationStateAsync()).User;
+        var shared = await DocumentService.ShareAsync(actor, activeDocument.DocumentId,
+            new DocumentShareRequest(null, shareForm.RecipientDepartment));
+        managementMessage = shared ? "Document shared with the selected department." : "The share could not be created.";
+        await RefreshActiveSharesAsync(actor);
+    }
+
+    private async Task RevokeShareAsync(int shareId)
+    {
+        if (activeDocument is null)
+        {
+            return;
+        }
+        var actor = (await AuthenticationStateProvider.GetAuthenticationStateAsync()).User;
+        var revoked = await DocumentService.RevokeShareAsync(actor, activeDocument.DocumentId, shareId);
+        managementMessage = revoked ? "Share access revoked." : "The share could not be revoked.";
+        await RefreshActiveSharesAsync(actor);
+    }
+
+    private async Task RefreshActiveSharesAsync(ClaimsPrincipal actor)
+    {
+        if (activeDocument is not null)
+        {
+            activeShares = (await DocumentService.GetDocumentSharesAsync(actor, activeDocument.DocumentId)).ToList();
+        }
+    }
+
+    private async Task RefreshActiveDocumentAsync(ClaimsPrincipal actor)
+    {
+        if (activeDocument is not null)
+        {
+            activeDocument = await DocumentService.GetAccessibleDocumentAsync(actor, activeDocument.DocumentId);
+        }
+    }
+
+    private static string FriendlyError(string? code) => code switch
+    {
+        "unsupported-file-type" => "Rejected: this file type is not supported.",
+        "file-content-invalid" => "Rejected: the file content does not match its supported type.",
+        "infected-file-rejected" => "Rejected: the configured scanner reported an infection.",
+        "invalid-metadata" => "Rejected: check the title, category, description, and tags.",
+        "project-or-task-access-denied" => "Rejected: you do not have access to the selected project or task.",
+        "file-size-or-content-invalid" => "Rejected: file size is outside the allowed range.",
+        "upload-storage-failed" or "upload-failed" => "Upload failed. No document was added.",
+        _ => "Upload failed. Review the file and metadata, then try again."
+    };
+
+    private static string FormatSize(long size)
+    {
+        if (size < 1024)
+        {
+            return size.ToString(CultureInfo.InvariantCulture) + " B";
+        }
+        if (size < 1024 * 1024)
+        {
+            return (size / 1024d).ToString("0.#", CultureInfo.InvariantCulture) + " KB";
+        }
+        return (size / (1024d * 1024)).ToString("0.#", CultureInfo.InvariantCulture) + " MB";
+    }
+
+    private sealed class UploadForm
+    {
+        [Required, MaxLength(255)]
+        public string Title { get; set; } = string.Empty;
+
+        [MaxLength(2000)]
+        public string? Description { get; set; }
+
+        [Required]
+        public string Category { get; set; } = string.Empty;
+
+        public int? ProjectId { get; set; }
+        public string TagsText { get; set; } = string.Empty;
+        public bool AllowUnscanned { get; set; }
+    }
+
+    private sealed record UploadResultItem(string FileName, bool Succeeded, string Message);
+
+    private sealed class DocumentEditForm
+    {
+        [Required, MaxLength(255)]
+        public string Title { get; set; } = string.Empty;
+        [MaxLength(2000)]
+        public string? Description { get; set; }
+        [Required]
+        public string Category { get; set; } = string.Empty;
+        public string TagsText { get; set; } = string.Empty;
+    }
+
+    private sealed class DocumentShareForm
+    {
+        public int? RecipientUserId { get; set; }
+        public string? RecipientDepartment { get; set; }
+    }
+}

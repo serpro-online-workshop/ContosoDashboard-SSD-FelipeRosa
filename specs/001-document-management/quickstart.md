@@ -16,13 +16,13 @@ dotnet test ContosoDashboard.Tests/ContosoDashboard.Tests.csproj
 dotnet run --project ContosoDashboard/ContosoDashboard.csproj
 ```
 
-The app applies EF Core migrations to its SQLite database. Before testing against a pre-feature training database created with `EnsureCreated`, back it up and follow the migration/baseline instructions produced with the implementation; do not delete or replace an existing database without an explicit backup/reset decision. Uploaded files are stored under the configured private directory outside `wwwroot`.
+The app applies EF Core migrations to its SQLite database. A fresh database gets the full schema from the initial migration and the document compatibility migration. For a complete legacy database created by `EnsureCreated`, startup verifies the seven legacy tables and required key columns, records the initial migration as a baseline, then applies the idempotent document-schema migration. Existing application rows are not dropped or reseeded during this baseline. Back up `ContosoDashboard/ContosoDashboard.db` before upgrading. If the legacy schema is partial or unrecognized, startup stops without resetting the file; resolve it from a backup before retrying. Uploaded files are stored under the configured private directory outside `wwwroot`.
 
 Open the local URL printed by `dotnet run`, then sign in through the mock login selector. Seeded identities include Ni Kang (Employee), Floris Kregel (Team Lead), Camille Nicole (Project Manager), and System Administrator. Ni Kang and Floris Kregel are in Engineering; the sample project includes both as members.
 
 ## Validation Scenarios
 
-1. **Successful upload and warning state**: As Ni Kang, upload a supported PDF under 25 MB with a title and required category. With no scanner configured, verify that the warning is visible before continuation, the upload succeeds, and the file appears in My Documents with its metadata and scan outcome. Confirm the private file is not directly addressable under `wwwroot`.
+1. **Successful upload and warning state**: As Ni Kang, upload a supported PDF under 25 MB with a title and required category. With no scanner configured, verify the first attempt displays a warning and does not save the file. Explicitly opt in and retry; confirm the upload succeeds with an `Unavailable` scan outcome and appears in My Documents. Confirm the private file is not directly addressable under `wwwroot`.
 2. **Upload rejection**: Submit a file larger than 25 MB, an unsupported extension, an empty file, and a controlled scanner fixture that returns infected. Verify each failure is clear and no document is available to list, search, download, or preview. Use a deterministic scanner fake for automated tests; do not use real malware samples.
 3. **File validation and metadata**: Test supported PDF, DOCX, XLSX, PPTX, TXT, JPEG, and PNG fixtures; verify that mismatched or invalid content is rejected even if the browser reports an allowed MIME type. Confirm categories remain text values and file type accepts up to 255 characters.
 4. **Browse and search**: Create documents across the supported categories and project/personal scopes. Verify title/date/category/size sorting, category/project/date filters, pagination, and search by title, description, tags, uploader, and project. Only authorized documents may appear.
@@ -30,7 +30,7 @@ Open the local URL printed by `dotnet run`, then sign in through the mock login 
 6. **Update and deletion**: As the owner, edit metadata, replace a file, and permanently delete after confirmation. Confirm replacement does not retain historical versions, deleted documents are unavailable from lists/search/download/preview, and the deletion activity snapshot remains available to administrators.
 7. **Task, project, dashboard, and notifications**: Verify project documents appear in project details, task-associated uploads inherit the task's project, dashboard recents show the latest five owned uploads and a user-scoped count, and share/project-upload events create the specified in-app notifications.
 8. **Administrator reporting**: Verify an administrator can see document type/uploader/access reports and a non-administrator cannot access the report route or its data.
-9. **Offline behavior**: Start the app with no external services and no scanner. Verify upload, local storage, browsing, project/task access, and notification behavior operate locally, with the scan-unavailable warning shown.
+9. **Offline behavior**: Start the app with no external services and no scanner. Verify upload, local storage, browsing, project/task access, and notification behavior operate locally. The first unavailable-scan attempt must warn and require explicit opt-in before retry.
 
 ## Performance Checks
 

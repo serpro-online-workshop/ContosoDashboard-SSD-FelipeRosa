@@ -1,0 +1,279 @@
+@page "/tasks/{TaskId:int}"
+@using System.ComponentModel.DataAnnotations
+@using System.Security.Claims
+@using ContosoDashboard.Models
+@using ContosoDashboard.Services
+@using Microsoft.AspNetCore.Authorization
+@using Microsoft.AspNetCore.Components.Forms
+@attribute [Authorize]
+@inject ITaskService TaskService
+@inject IDocumentService DocumentService
+@inject AuthenticationStateProvider AuthenticationStateProvider
+@inject NavigationManager NavigationManager
+
+<PageTitle>Task Details - ContosoDashboard</PageTitle>
+
+<div class="container-fluid">
+    @if (task is null)
+    {
+        <h1>Task details</h1>
+        <p class="text-muted">This task is unavailable or you do not have access.</p>
+        <a href="/tasks">Back to My Tasks</a>
+    }
+    else
+    {
+        <div class="d-flex align-items-center justify-content-between mb-4">
+            <div>
+                <a href="/tasks" class="small">My Tasks</a>
+                <h1 class="h2 mb-1">@task.Title</h1>
+                <p class="text-muted mb-0">@(task.Project?.Name ?? "No project")</p>
+            </div>
+            <span class="badge bg-secondary">@task.Status</span>
+        </div>
+
+        @if (!string.IsNullOrWhiteSpace(task.Description))
+        {
+            <p>@task.Description</p>
+        }
+
+        <div class="row g-4">
+            <section class="col-lg-7" aria-labelledby="task-documents-heading">
+                <h2 id="task-documents-heading" class="h4">Task documents</h2>
+                @if (documents.Count == 0)
+                {
+                    <p class="text-muted">No documents are attached to this task.</p>
+                }
+                else
+                {
+                    <div class="table-responsive">
+                        <table class="table table-hover align-middle">
+                            <thead>
+                                <tr><th>Title</th><th>Category</th><th>Uploaded</th><th>Actions</th></tr>
+                            </thead>
+                            <tbody>
+                                @foreach (var document in documents)
+                                {
+                                    <tr>
+                                        <td>@document.Title</td>
+                                        <td>@document.Category</td>
+                                        <td>@document.UploadedAtUtc.ToLocalTime().ToString("g")</td>
+                                        <td>
+                                            <a href="/documents/@document.DocumentId/download">Download</a>
+                                            @if (document.FileType is "application/pdf" or "image/jpeg" or "image/png")
+                                            {
+                                                <span> · <a href="/documents/@document.DocumentId/preview" target="_blank" rel="noopener">Preview</a></span>
+                                            }
+                                        </td>
+                                    </tr>
+                                }
+                            </tbody>
+                        </table>
+                    </div>
+                }
+
+                @if (attachableDocuments.Count > 0)
+                {
+                    <div class="mt-3">
+                        <label class="form-label" for="attach-document">Attach an existing document</label>
+                        <div class="input-group">
+                            <InputSelect id="attach-document" class="form-select" @bind-Value="selectedDocumentId">
+                                <option value="">Select a document</option>
+                                @foreach (var document in attachableDocuments)
+                                {
+                                    <option value="@document.DocumentId">@document.Title</option>
+                                }
+                            </InputSelect>
+                            <button class="btn btn-outline-primary" @onclick="AttachSelectedAsync" disabled="@(!selectedDocumentId.HasValue)">Attach</button>
+                        </div>
+                    </div>
+                }
+            </section>
+
+            <section class="col-lg-5" aria-labelledby="task-upload-heading">
+                <h2 id="task-upload-heading" class="h4">Upload to task</h2>
+                <EditForm Model="uploadForm" OnValidSubmit="UploadTaskDocumentAsync">
+                    <DataAnnotationsValidator />
+                    <div class="mb-3">
+                        <label class="form-label" for="task-file">File</label>
+                        <InputFile id="task-file" OnChange="OnFileSelected" class="form-control" />
+                        <div class="form-text">One file per upload; 25 MB maximum.</div>
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label" for="task-document-title">Title</label>
+                        <InputText id="task-document-title" class="form-control" @bind-Value="uploadForm.Title" maxlength="255" />
+                        <ValidationMessage For="() => uploadForm.Title" />
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label" for="task-document-category">Category</label>
+                        <InputSelect id="task-document-category" class="form-select" @bind-Value="uploadForm.Category">
+                            <option value="">Select a category</option>
+                            @foreach (var category in DocumentCategories.Allowed)
+                            {
+                                <option value="@category">@category</option>
+                            }
+                        </InputSelect>
+                        <ValidationMessage For="() => uploadForm.Category" />
+                    </div>
+                    @if (requiresScanConsent)
+                    {
+                        <div class="alert alert-warning" role="alert">
+                            Malware scanning was unavailable or inconclusive. The file has not been saved.
+                            <div class="form-check mt-2">
+                                <InputCheckbox id="task-allow-unscanned" class="form-check-input" @bind-Value="uploadForm.AllowUnscanned" />
+                                <label class="form-check-label" for="task-allow-unscanned">Continue without a clean scan result</label>
+                            </div>
+                        </div>
+                    }
+                    @if (uploading)
+                    {
+                        <p aria-live="polite">Uploading @progressFile (@Math.Round(progressPercent)%)</p>
+                        <progress class="w-100" value="@progressPercent" max="100">@Math.Round(progressPercent)%</progress>
+                    }
+                    <button type="submit" class="btn btn-primary" disabled="@(uploading || selectedFile is null)">Upload document</button>
+                </EditForm>
+                @if (!string.IsNullOrWhiteSpace(message))
+                {
+                    <p class="mt-3" role="status">@message</p>
+                }
+            </section>
+        </div>
+    }
+</div>
+
+@code {
+    private const long MaxFileSizeBytes = 26_214_400;
+    [Parameter] public int TaskId { get; set; }
+
+    private TaskItem? task;
+    private List<DocumentListItem> documents = [];
+    private List<DocumentListItem> attachableDocuments = [];
+    private int currentUserId;
+    private int? selectedDocumentId;
+    private IBrowserFile? selectedFile;
+    private bool uploading;
+    private bool requiresScanConsent;
+    private double progressPercent;
+    private string progressFile = string.Empty;
+    private string message = string.Empty;
+    private readonly TaskUploadForm uploadForm = new();
+
+    protected override async Task OnInitializedAsync()
+    {
+        var principal = (await AuthenticationStateProvider.GetAuthenticationStateAsync()).User;
+        if (!int.TryParse(principal.FindFirstValue(ClaimTypes.NameIdentifier), out currentUserId))
+        {
+            return;
+        }
+
+        task = await TaskService.GetTaskByIdAsync(TaskId, currentUserId);
+        if (task is not null)
+        {
+            await LoadTaskDocumentsAsync(principal);
+        }
+    }
+
+    private void OnFileSelected(InputFileChangeEventArgs args)
+    {
+        selectedFile = args.File;
+        requiresScanConsent = false;
+        uploadForm.AllowUnscanned = false;
+        message = string.Empty;
+    }
+
+    private async Task UploadTaskDocumentAsync()
+    {
+        if (task is null || selectedFile is null || selectedFile.Size <= 0 || selectedFile.Size > MaxFileSizeBytes)
+        {
+            message = "Select a file between 1 byte and 25 MB.";
+            return;
+        }
+
+        uploading = true;
+        progressPercent = 0;
+        progressFile = Path.GetFileName(selectedFile.Name);
+        try
+        {
+            var file = selectedFile;
+            var progress = new Progress<long>(bytes =>
+            {
+                progressPercent = Math.Min(100, bytes * 100d / file.Size);
+                StateHasChanged();
+            });
+            var principal = (await AuthenticationStateProvider.GetAuthenticationStateAsync()).User;
+            var request = new DocumentUploadRequest(
+                uploadForm.Title,
+                null,
+                uploadForm.Category,
+                task.ProjectId,
+                task.TaskId,
+                [],
+                uploadForm.AllowUnscanned);
+            await using var stream = file.OpenReadStream(MaxFileSizeBytes);
+            var result = await DocumentService.UploadAsync(principal, request, stream, file.Name, file.ContentType, progress);
+
+            if (result.ScanWarning && !result.Succeeded)
+            {
+                requiresScanConsent = true;
+                uploadForm.AllowUnscanned = false;
+                message = "Review the warning and explicitly confirm before retrying this upload.";
+            }
+            else if (result.Succeeded)
+            {
+                message = result.ScanWarning ? "Document uploaded with an unscanned-file warning." : "Document uploaded successfully.";
+                selectedFile = null;
+                uploadForm.Title = string.Empty;
+                uploadForm.AllowUnscanned = false;
+                requiresScanConsent = false;
+                await LoadTaskDocumentsAsync(principal);
+            }
+            else
+            {
+                message = result.ErrorCode switch
+                {
+                    "infected-file-rejected" => "The configured scanner reported an infection; the file was rejected.",
+                    "file-content-invalid" => "The file content does not match its supported type.",
+                    "unsupported-file-type" => "This file type is not supported.",
+                    _ => "The upload could not be completed."
+                };
+            }
+        }
+        catch (Exception exception) when (exception is IOException or InvalidOperationException)
+        {
+            message = "The upload could not be completed. Verify the file and try again.";
+        }
+        finally
+        {
+            uploading = false;
+            progressPercent = 0;
+        }
+    }
+
+    private async Task AttachSelectedAsync()
+    {
+        if (!selectedDocumentId.HasValue)
+        {
+            return;
+        }
+        var principal = (await AuthenticationStateProvider.GetAuthenticationStateAsync()).User;
+        var attached = await DocumentService.AttachToTaskAsync(principal, selectedDocumentId.Value, TaskId);
+        message = attached ? "Document attached to this task." : "The document could not be attached.";
+        if (attached)
+        {
+            selectedDocumentId = null;
+            await LoadTaskDocumentsAsync(principal);
+        }
+    }
+
+    private async Task LoadTaskDocumentsAsync(ClaimsPrincipal principal)
+    {
+        documents = (await DocumentService.GetTaskDocumentsAsync(principal, TaskId)).ToList();
+        attachableDocuments = (await DocumentService.GetAttachableDocumentsAsync(principal, TaskId)).ToList();
+    }
+
+    private sealed class TaskUploadForm
+    {
+        [Required, MaxLength(255)] public string Title { get; set; } = string.Empty;
+        [Required] public string Category { get; set; } = string.Empty;
+        public bool AllowUnscanned { get; set; }
+    }
+}

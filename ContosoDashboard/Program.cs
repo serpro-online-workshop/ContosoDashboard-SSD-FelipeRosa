@@ -3,6 +3,7 @@ using ContosoDashboard.Data;
 using ContosoDashboard.Services;
 using Microsoft.AspNetCore.Authentication.Cookies;
 using Microsoft.AspNetCore.Components.Authorization;
+using System.Security.Claims;
 
 var builder = WebApplication.CreateBuilder(args);
 
@@ -16,6 +17,10 @@ builder.Services.AddScoped<AuthenticationStateProvider, CustomAuthenticationStat
 // Configure Database
 builder.Services.AddDbContext<ApplicationDbContext>(options =>
     options.UseSqlite(builder.Configuration.GetConnectionString("DefaultConnection")));
+builder.Services.Configure<DocumentStorageOptions>(
+    builder.Configuration.GetSection(DocumentStorageOptions.SectionName));
+builder.Services.Configure<MalwareScannerOptions>(
+    builder.Configuration.GetSection(MalwareScannerOptions.SectionName));
 
 // Configure Mock Authentication (Cookie-based for training purposes)
 builder.Services.AddAuthentication(CookieAuthenticationDefaults.AuthenticationScheme)
@@ -43,6 +48,9 @@ builder.Services.AddScoped<ITaskService, TaskService>();
 builder.Services.AddScoped<IProjectService, ProjectService>();
 builder.Services.AddScoped<INotificationService, NotificationService>();
 builder.Services.AddScoped<IDashboardService, DashboardService>();
+builder.Services.AddScoped<IDocumentService, DocumentService>();
+builder.Services.AddScoped<IFileStorageService, LocalFileStorageService>();
+builder.Services.AddScoped<IMalwareScanner, ClamAvMalwareScanner>();
 
 // Add HttpContextAccessor for accessing user claims
 builder.Services.AddHttpContextAccessor();
@@ -50,19 +58,12 @@ builder.Services.AddHttpContextAccessor();
 var app = builder.Build();
 
 // Initialize database
-using (var scope = app.Services.CreateScope())
+await using (var scope = app.Services.CreateAsyncScope())
 {
     var services = scope.ServiceProvider;
-    try
-    {
-        var context = services.GetRequiredService<ApplicationDbContext>();
-        context.Database.EnsureCreated(); // For development - use migrations in production
-    }
-    catch (Exception ex)
-    {
-        var logger = services.GetRequiredService<ILogger<Program>>();
-        logger.LogError(ex, "An error occurred creating the database.");
-    }
+    var context = services.GetRequiredService<ApplicationDbContext>();
+    var logger = services.GetRequiredService<ILogger<Program>>();
+    await DatabaseMigrationInitializer.MigrateAsync(context, logger);
 }
 
 // Configure the HTTP request pipeline.
@@ -104,6 +105,41 @@ app.UseRouting();
 // Enable authentication and authorization
 app.UseAuthentication();
 app.UseAuthorization();
+
+app.MapGet("/documents/{documentId:int}/download", async (
+    int documentId,
+    ClaimsPrincipal user,
+    IDocumentService documents,
+    IFileStorageService storage,
+    CancellationToken cancellationToken) =>
+{
+    var document = await documents.GetAccessibleDocumentAsync(user, documentId, cancellationToken: cancellationToken);
+    if (document is null)
+    {
+        return Results.NotFound();
+    }
+
+    var stream = await storage.OpenReadAsync(document.StoragePath, cancellationToken);
+    await documents.RecordDownloadAsync(user, document, cancellationToken);
+    return Results.File(stream, document.FileType, document.OriginalFileName, enableRangeProcessing: true);
+}).RequireAuthorization();
+
+app.MapGet("/documents/{documentId:int}/preview", async (
+    int documentId,
+    ClaimsPrincipal user,
+    IDocumentService documents,
+    IFileStorageService storage,
+    CancellationToken cancellationToken) =>
+{
+    var document = await documents.GetAccessibleDocumentAsync(user, documentId, preview: true, cancellationToken);
+    if (document is null)
+    {
+        return Results.NotFound();
+    }
+
+    var stream = await storage.OpenReadAsync(document.StoragePath, cancellationToken);
+    return Results.Stream(stream, document.FileType, enableRangeProcessing: true);
+}).RequireAuthorization();
 
 app.MapBlazorHub();
 app.MapFallbackToPage("/_Host");

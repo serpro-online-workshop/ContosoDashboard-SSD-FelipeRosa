@@ -6,6 +6,7 @@
 @attribute [Authorize]
 @inject ITaskService TaskService
 @inject AuthenticationStateProvider AuthenticationStateProvider
+@inject NavigationManager NavigationManager
 
 <PageTitle>My Tasks - ContosoDashboard</PageTitle>
 
@@ -187,7 +188,7 @@
 
     private void ViewTaskDetails(int taskId)
     {
-        // TODO: Navigate to task details or show modal
+        NavigationManager.NavigateTo($"/tasks/{taskId}");
     }
 
     private string GetPriorityColor(TaskPriority priority)

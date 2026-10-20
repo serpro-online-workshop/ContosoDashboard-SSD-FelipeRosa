@@ -20,7 +20,7 @@
     @if (summary != null)
     {
         <div class="row mb-4">
-            <div class="col-md-3 mb-3">
+            <div class="col-6 col-md mb-3">
                 <div class="card summary-card">
                     <div class="card-body">
                         <h5 class="card-title">Active Tasks</h5>
@@ -28,7 +28,7 @@
                     </div>
                 </div>
             </div>
-            <div class="col-md-3 mb-3">
+            <div class="col-6 col-md mb-3">
                 <div class="card summary-card">
                     <div class="card-body">
                         <h5 class="card-title">Due Today</h5>
@@ -36,7 +36,7 @@
                     </div>
                 </div>
             </div>
-            <div class="col-md-3 mb-3">
+            <div class="col-6 col-md mb-3">
                 <div class="card summary-card">
                     <div class="card-body">
                         <h5 class="card-title">Active Projects</h5>
@@ -44,11 +44,19 @@
                     </div>
                 </div>
             </div>
-            <div class="col-md-3 mb-3">
+            <div class="col-6 col-md mb-3">
                 <div class="card summary-card">
                     <div class="card-body">
                         <h5 class="card-title">Notifications</h5>
                         <p class="card-text display-4 text-danger">@summary.UnreadNotifications</p>
+                    </div>
+                </div>
+            </div>
+            <div class="col-6 col-md mb-3">
+                <div class="card summary-card">
+                    <div class="card-body">
+                        <h5 class="card-title">My Documents</h5>
+                        <p class="card-text display-4">@summary.DocumentCount</p>
                     </div>
                 </div>
             </div>
@@ -116,6 +124,31 @@
             {
                 <p class="text-muted">No recent notifications</p>
             }
+        </div>
+    </div>
+
+    <div class="row mt-4">
+        <div class="col-md-6">
+            <h3>Recent Documents</h3>
+            @if (summary?.RecentDocuments.Count > 0)
+            {
+                <div class="list-group">
+                    @foreach (var document in summary.RecentDocuments)
+                    {
+                        <a class="list-group-item list-group-item-action d-flex justify-content-between gap-3" href="/documents/@document.DocumentId/download">
+                            <span><strong>@document.Title</strong><small class="d-block text-muted">@document.Category · @(document.ProjectName ?? "Personal")</small></span>
+                            <small class="text-muted text-nowrap">@document.UploadedAtUtc.ToLocalTime().ToString("d")</small>
+                        </a>
+                    }
+                </div>
+            }
+            else
+            {
+                <p class="text-muted">No recent documents.</p>
+            }
+        </div>
+        <div class="col-md-6 d-flex align-items-start justify-content-md-end mt-3 mt-md-0">
+            <a href="/documents" class="btn btn-outline-primary">View My Documents</a>
         </div>
     </div>
 </div>

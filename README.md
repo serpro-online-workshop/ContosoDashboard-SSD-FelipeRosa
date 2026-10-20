@@ -53,13 +53,14 @@ This application includes a **mock authentication system** designed for training
 
 ## Overview
 
-ContosoDashboard is built using ASP.NET Core 8.0 with Blazor Server and provides a centralized platform for:
+ContosoDashboard is built using ASP.NET Core 10 with Blazor Server and provides a centralized platform for:
 
 - Task management and tracking
 - Project oversight and collaboration
 - Team coordination
 - Notifications and announcements
 - User profile management
+- Offline document upload, organization, sharing, and audit reporting
 
 ## Features
 
@@ -74,6 +75,8 @@ ContosoDashboard is built using ASP.NET Core 8.0 with Blazor Server and provides
 - **Team Directory**: Browse team members by department with status, roles, and contact information
 - **Notifications Center**: View and manage all notifications with read/unread status and priority badges
 - **User Profile**: Update personal information, availability status, and notification preferences
+- **Document Management**: Upload, search, sort, filter, preview, download, share, replace, and delete work documents; associate them with projects and tasks
+- **Document Reports**: Administrator-only summaries of document types, uploaders, and access activity
 - **Service-Level Security**: Authorization checks prevent IDOR vulnerabilities
 - **Data Models**: Complete entity framework models for Users, Tasks, Projects, Notifications, and Announcements
 - **Business Services**: Service layer for all core functionality (Tasks, Projects, Users, Notifications, Dashboard)
@@ -81,9 +84,9 @@ ContosoDashboard is built using ASP.NET Core 8.0 with Blazor Server and provides
 
 ### 🔧 Technical Stack
 
-- **Framework**: ASP.NET Core 8.0
+- **Framework**: ASP.NET Core 10.0
 - **UI**: Blazor Server
-- **Database**: SQL Server LocalDB with Entity Framework Core
+- **Database**: SQLite with Entity Framework Core 10
 - **Authentication**: Cookie-based mock authentication for training (Azure AD/Microsoft Entra ID ready)
 - **Authorization**: Claims-based identity with role-based access control
 - **Styling**: Bootstrap 5.3 with Bootstrap Icons
@@ -97,8 +100,9 @@ ContosoDashboard is built using ASP.NET Core 8.0 with Blazor Server and provides
 This training application follows an **offline-first architecture** with abstraction layers that enable seamless migration to Azure services:
 
 **Current Implementation (Training/Offline):**
-- **Database**: SQL Server LocalDB (offline development database)
-- **File Storage**: Local filesystem for any file-based features
+- **Database**: SQLite local file (offline development database)
+- **File Storage**: Private local filesystem under `ContosoDashboard/AppData/uploads`, outside `wwwroot`
+- **Malware Scanning**: Optional local ClamAV executable; unavailable or inconclusive scans require explicit acknowledgement and do not imply a clean result
 - **Authentication**: Cookie-based mock authentication
 
 **Production Migration Path:**
@@ -137,29 +141,31 @@ public interface IFileStorageService
 
 ### Prerequisites
 
-- .NET 8.0 SDK or later
-- SQL Server LocalDB
+- .NET 10 SDK
+- No SQL Server or cloud service is required; SQLite is provided by the application package
 - Visual Studio 2022 or Visual Studio Code
 
 ### Quick Start
 
 1. **Navigate to the project directory**:
 
-   ```powershell
+   ```sh
    cd ContosoDashboard
    ```
 
 2. **Run the application** (database will be created automatically):
 
-   ```powershell
+   ```sh
    dotnet run
    ```
 
-3. **Open your browser** to `http://localhost:5000`
+3. **Open your browser** at the local URL printed by `dotnet run`
 
 4. **Login** - Select any user from the dropdown (no password required)
 
 The application automatically creates and seeds the database on first run with sample users, projects, tasks, and announcements.
+
+Document files are stored privately under the configured `DocumentStorage:RootPath` (default `AppData/uploads`) and are not served as static files. Configure `MalwareScanner:ExecutablePath` to enable a local ClamAV scan. If scanning is unavailable or inconclusive, the app warns and asks the uploader to explicitly continue; files reported infected are rejected. The warn-and-allow fallback is for offline training only and is not a production antivirus guarantee.
 
 ### Testing Security Features
 
@@ -203,13 +209,20 @@ ContosoDashboard/
 │   ├── TaskComment.cs               # Task comments
 │   ├── Notification.cs              # User notifications
 │   ├── ProjectMember.cs             # Project team members
-│   └── Announcement.cs              # System announcements
+│   ├── Announcement.cs              # System announcements
+│   ├── Document.cs                  # Uploaded document metadata
+│   ├── DocumentTag.cs               # Search tags
+│   ├── DocumentShare.cs             # User/department sharing
+│   └── DocumentActivity.cs          # Document activity records
 ├── Services/
 │   ├── IUserService.cs / UserService.cs
 │   ├── ITaskService.cs / TaskService.cs
 │   ├── IProjectService.cs / ProjectService.cs
 │   ├── INotificationService.cs / NotificationService.cs
 │   ├── IDashboardService.cs / DashboardService.cs
+│   ├── IDocumentService.cs / DocumentService.cs
+│   ├── IFileStorageService.cs / LocalFileStorageService.cs
+│   ├── IMalwareScanner.cs / ClamAvMalwareScanner.cs
 │   └── CustomAuthenticationStateProvider.cs  # Blazor Server auth integration
 ├── Pages/
 │   ├── Index.razor                  # Dashboard home page
@@ -221,6 +234,10 @@ ContosoDashboard/
 │   ├── Team.razor                   # Team member directory
 │   ├── Notifications.razor          # Notification center
 │   ├── Profile.razor                # User profile page
+│   ├── Documents.razor              # My Documents and upload
+│   ├── SharedDocuments.razor        # Shared with Me
+│   ├── TaskDetails.razor            # Task documents
+│   ├── DocumentReports.razor        # Administrator reports
 │   └── _Host.cshtml                 # Blazor Server host page
 ├── Shared/
 │   ├── MainLayout.razor             # Main layout template
@@ -229,22 +246,44 @@ ContosoDashboard/
 │   └── css/site.css                 # Custom styles
 ├── Program.cs                       # Application entry point
 ├── appsettings.json                 # Configuration
+├── Migrations/                      # EF Core schema history
 └── ContosoDashboard.csproj          # Project file
 ```
+
+The `ContosoDashboard.Tests/` project contains SQLite-backed xUnit tests.
 
 ## Configuration
 
 ### Database Connection
 
-The default connection string in `appsettings.json` uses SQL Server LocalDB:
+The default connection string in `ContosoDashboard/appsettings.json` uses a local SQLite file:
 
 ```json
 "ConnectionStrings": {
-  "DefaultConnection": "Server=(localdb)\\mssqllocaldb;Database=ContosoDashboard;Trusted_Connection=True;MultipleActiveResultSets=true"
+   "DefaultConnection": "Data Source=ContosoDashboard.db"
 }
 ```
 
-Update this if using a different SQL Server instance.
+Configure private document storage and optional local scanning in the same file:
+
+```json
+"DocumentStorage": {
+   "RootPath": "AppData/uploads",
+   "MaxFilesPerBatch": 10
+},
+"MalwareScanner": {
+   "ExecutablePath": "",
+   "TimeoutSeconds": 30
+}
+```
+
+The storage root is resolved under the application content directory and must remain outside `wwwroot`.
+
+Run the automated service tests with:
+
+```sh
+dotnet test ContosoDashboard.Tests/ContosoDashboard.Tests.csproj
+```
 
 ### Production Authentication Guidance
 
@@ -292,8 +331,12 @@ The application includes pre-seeded data for testing:
 | Login | `/login` | User selection for mock auth | No |
 | Dashboard | `/` | Summary, announcements, quick actions | Yes |
 | Tasks | `/tasks` | View and manage your tasks | Yes |
+| Task Details | `/tasks/{id}` | View and attach task documents | Yes (task access required) |
 | Projects | `/projects` | View your projects | Yes |
 | Project Details | `/projects/{id}` | Detailed project view | Yes (member only) |
+| My Documents | `/documents` | Upload, search, manage, and retrieve owned documents | Yes |
+| Shared with Me | `/documents/shared` | View active user/department shares | Yes |
+| Document Reports | `/documents/reports` | Document usage and activity reports | Administrator |
 | Team | `/team` | View team members | Yes |
 | Notifications | `/notifications` | Manage notifications | Yes |
 | Profile | `/profile` | Edit your profile | Yes |
@@ -307,6 +350,7 @@ The application includes pre-seeded data for testing:
 - Active announcements display
 - Quick action links
 - Recent notifications feed
+- Current user's document count and five most recent uploads
 
 ### Task Management
 
@@ -329,11 +373,21 @@ The application includes pre-seeded data for testing:
 - Notification preferences
 - Display initials when no photo is set
 
+### Document Management
+
+- Upload supported PDF, Office, text, JPEG, and PNG files up to 25 MB each
+- Search, filter, sort, paginate, download, and preview accessible documents
+- Share with a user or department; recipients can view active grants under Shared with Me
+- Attach documents to projects and tasks; manage metadata and files within owner/role boundaries
+- Store file bytes outside `wwwroot`; downloads and previews re-check access by document ID
+- Use local ClamAV when configured. If scanning is unavailable or inconclusive, the uploader must acknowledge the warning before the file is accepted; confirmed infections are rejected
+- Operate without cloud services using the local SQLite database and filesystem
+
 ## Troubleshooting
 
 ### Can't Login
 
-- Ensure database is created (run `dotnet run` to auto-create)
+- Run `dotnet run` and check that EF Core migrations complete successfully at startup
 - Check that seeded users exist in database
 - Clear browser cookies and try again
 
@@ -351,20 +405,18 @@ The application includes pre-seeded data for testing:
 
 ### Database Issues
 
-**Option 1: Recreate via LocalDB**
+**Migration safety**
 
-```powershell
-sqllocaldb stop mssqllocaldb
-sqllocaldb delete mssqllocaldb
-# Then run the application - database will be recreated automatically
+The application uses EF Core migrations. A fresh SQLite file receives the complete schema. For an existing database created by the earlier `EnsureCreated()` version, startup recognizes the legacy tables, records the initial migration baseline, and applies the additive document-schema migration without dropping existing rows. Back up `ContosoDashboard/ContosoDashboard.db` before upgrading. Partial or unrecognized schemas stop with an error and are not deleted or reset automatically.
+
+To apply migrations explicitly from the repository root:
+
+```sh
+dotnet tool install --global dotnet-ef --version 10.0.0
+dotnet ef database update --project ContosoDashboard/ContosoDashboard.csproj --startup-project ContosoDashboard/ContosoDashboard.csproj
 ```
 
-**Option 2: Using EF Tools**
-
-- Delete database: `dotnet ef database drop --force`
-- Recreate: Run application (auto-creates with seed data)
-
-**Note**: The application uses `EnsureCreated()` for development, so just running `dotnet run` will automatically create and seed the database if it doesn't exist.
+Uploaded files are stored separately from SQLite. Include the configured private upload directory in any backup that should preserve documents.
 
 ## Security Concepts and Patterns
 

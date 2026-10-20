@@ -11,9 +11,9 @@
 
 **Purpose**: Establish shared project and local-storage configuration.
 
-- [ ] T001 [P] Create the .NET 10 xUnit test project with a reference to the application and required test packages in `ContosoDashboard.Tests/ContosoDashboard.Tests.csproj`
-- [ ] T002 [P] Configure the private upload root, optional ClamAV command, and scan timeout settings in `ContosoDashboard/appsettings.json`
-- [ ] T003 [P] Ignore private uploaded files and local test database artifacts in `.gitignore`
+- [X] T001 [P] Create the .NET 10 xUnit test project with a reference to the application and required test packages in `ContosoDashboard.Tests/ContosoDashboard.Tests.csproj`
+- [X] T002 [P] Configure the private upload root, optional ClamAV command, and scan timeout settings in `ContosoDashboard/appsettings.json`
+- [X] T003 [P] Ignore private uploaded files and local test database artifacts in `.gitignore`
 
 ---
 
@@ -21,20 +21,20 @@
 
 **Purpose**: Establish shared persistence, storage, scanning, and service contracts before user-story implementation.
 
-- [ ] T004 [P] Create the Document entity with integer `DocumentId`; `Title` "Required, max 255 characters"; `Description` "Optional, max 2,000 characters"; `Category` "Required text, max 50 characters; allowlisted values"; `OriginalFileName` "Required, max 255 characters"; `StoragePath` "Required relative path, unique"; `FileType` "Required, max 255 characters"; `FileSizeBytes` "Required positive integer, at most 26,214,400"; required UTC upload time/uploader; optional project/task links; and scan outcome in `ContosoDashboard/Models/Document.cs`
-- [ ] T005 [P] Create the DocumentTag entity with required normalized tag text, max 50 characters, a document/tag composite key, and a tag index in `ContosoDashboard/Models/DocumentTag.cs`
-- [ ] T006 [P] Create the DocumentShare entity with integer key, nullable user or department recipient, department max 100 characters, grant/revocation actors and UTC dates, and exactly one recipient target in `ContosoDashboard/Models/DocumentShare.cs`
-- [ ] T007 [P] Create append-only DocumentActivity fields, including title and target snapshots max 255 characters, actor, type, and UTC time, without a cascading document foreign key in `ContosoDashboard/Models/DocumentActivity.cs`
-- [ ] T008 Configure document DbSets, relationships, delete behaviors, uniqueness, and query indexes in `ContosoDashboard/Data/ApplicationDbContext.cs` (depends on T004-T007)
-- [ ] T009 Add document navigation collections to User, Project, and TaskItem in `ContosoDashboard/Models/User.cs`, `ContosoDashboard/Models/Project.cs`, and `ContosoDashboard/Models/TaskItem.cs` (depends on T004)
-- [ ] T010 [P] Define validated storage-root and scanner configuration options in `ContosoDashboard/Services/DocumentStorageOptions.cs`
-- [ ] T011 [P] Define the local storage contract for staging, finalize, replace, read, and delete operations in `ContosoDashboard/Services/IFileStorageService.cs`
-- [ ] T012 Implement path normalization, generated GUID filenames, private staging, bounded file operations, and compensating cleanup outside `wwwroot` in `ContosoDashboard/Services/LocalFileStorageService.cs` (depends on T010-T011)
-- [ ] T013 [P] Define scanner verdicts for Clean, Infected, Unavailable, and Inconclusive in `ContosoDashboard/Services/IMalwareScanner.cs`
-- [ ] T014 Implement the optional ClamAV adapter with shell-free process invocation, bounded timeout, and distinct clean/infected/unavailable results in `ContosoDashboard/Services/ClamAvMalwareScanner.cs` (depends on T010, T013)
-- [ ] T015 Define upload, search/list, access, update, replacement, deletion, sharing, task/project, and report operations in `ContosoDashboard/Services/IDocumentService.cs`
-- [ ] T016 Create the EF Core migration for the document entities and indexes, and document a backed-up, non-destructive adoption path for existing `EnsureCreated` SQLite databases in `ContosoDashboard/Migrations/` and `specs/001-document-management/quickstart.md` (depends on T008-T009)
-- [ ] T017 Register storage/scanner options and services, register database migrations at startup instead of `EnsureCreated`, and preserve existing SQLite data in `ContosoDashboard/Program.cs` (depends on T010-T014, T016)
+- [X] T004 [P] Create the Document entity with integer `DocumentId`; `Title` "Required, max 255 characters"; `Description` "Optional, max 2,000 characters"; `Category` "Required text, max 50 characters; allowlisted values"; `OriginalFileName` "Required, max 255 characters"; `StoragePath` "Required relative path, unique"; `FileType` "Required, max 255 characters"; `FileSizeBytes` "Required positive integer, at most 26,214,400"; required UTC upload time/uploader; optional project/task links; and scan outcome in `ContosoDashboard/Models/Document.cs`
+- [X] T005 [P] Create the DocumentTag entity with required normalized tag text, max 50 characters, a document/tag composite key, and a tag index in `ContosoDashboard/Models/DocumentTag.cs`
+- [X] T006 [P] Create the DocumentShare entity with integer key, nullable user or department recipient, department max 100 characters, grant/revocation actors and UTC dates, and exactly one recipient target in `ContosoDashboard/Models/DocumentShare.cs`
+- [X] T007 [P] Create append-only DocumentActivity fields, including title and target snapshots max 255 characters, actor, type, and UTC time, without a cascading document foreign key in `ContosoDashboard/Models/DocumentActivity.cs`
+- [X] T008 Configure document DbSets, relationships, delete behaviors, uniqueness, and query indexes in `ContosoDashboard/Data/ApplicationDbContext.cs` (depends on T004-T007)
+- [X] T009 Add document navigation collections to User, Project, and TaskItem in `ContosoDashboard/Models/User.cs`, `ContosoDashboard/Models/Project.cs`, and `ContosoDashboard/Models/TaskItem.cs` (depends on T004)
+- [X] T010 [P] Define validated storage-root and scanner configuration options in `ContosoDashboard/Services/DocumentStorageOptions.cs`
+- [X] T011 [P] Define the local storage contract for staging, finalize, replace, read, and delete operations in `ContosoDashboard/Services/IFileStorageService.cs`
+- [X] T012 Implement path normalization, generated GUID filenames, private staging, bounded file operations, and compensating cleanup outside `wwwroot` in `ContosoDashboard/Services/LocalFileStorageService.cs` (depends on T010-T011)
+- [X] T013 [P] Define scanner verdicts for Clean, Infected, Unavailable, and Inconclusive in `ContosoDashboard/Services/IMalwareScanner.cs`
+- [X] T014 Implement the optional ClamAV adapter with shell-free process invocation, bounded timeout, and distinct clean/infected/unavailable results in `ContosoDashboard/Services/ClamAvMalwareScanner.cs` (depends on T010, T013)
+- [X] T015 Define upload, search/list, access, update, replacement, deletion, sharing, task/project, and report operations in `ContosoDashboard/Services/IDocumentService.cs`
+- [X] T016 Create the EF Core migration for the document entities and indexes, and document a backed-up, non-destructive adoption path for existing `EnsureCreated` SQLite databases in `ContosoDashboard/Migrations/` and `specs/001-document-management/quickstart.md` (depends on T008-T009)
+- [X] T017 Register storage/scanner options and services, register database migrations at startup instead of `EnsureCreated`, and preserve existing SQLite data in `ContosoDashboard/Program.cs` (depends on T010-T014, T016)
 
 **Checkpoint**: The project has document schema, local storage/scanning services, and startup migration wiring; no user-story UI is required yet.
 
@@ -48,13 +48,13 @@
 
 ### Implementation
 
-- [ ] T018 [US1] Implement authorized per-file upload orchestration, allowlist/content validation, metadata validation, malware verdict handling, staging/finalization, scan-outcome persistence, and upload activity in `ContosoDashboard/Services/DocumentService.cs` (depends on T012-T015, T017)
-- [ ] T019 [P] [US1] Build the `/documents` upload form with multiple selection, required title/category, optional description/project/tags, bounded streaming progress, per-file warnings, result states, and a minimal My Documents list showing newly uploaded metadata in `ContosoDashboard/Pages/Documents.razor` (depends on T018)
-- [ ] T020 [P] [US1] Register `IDocumentService` and add a Documents navigation link in `ContosoDashboard/Program.cs` and `ContosoDashboard/Shared/NavMenu.razor` (depends on T018)
+- [X] T018 [US1] Implement authorized per-file upload orchestration, allowlist/content validation, metadata validation, malware verdict handling, staging/finalization, scan-outcome persistence, and upload activity in `ContosoDashboard/Services/DocumentService.cs` (depends on T012-T015, T017)
+- [X] T019 [P] [US1] Build the `/documents` upload form with multiple selection, required title/category, optional description/project/tags, bounded streaming progress, per-file warnings, result states, and a minimal My Documents list showing newly uploaded metadata in `ContosoDashboard/Pages/Documents.razor` (depends on T018)
+- [X] T020 [P] [US1] Register `IDocumentService` and add a Documents navigation link in `ContosoDashboard/Program.cs` and `ContosoDashboard/Shared/NavMenu.razor` (depends on T018)
 
 ### Tests
 
-- [ ] T021 [P] [US1] Add SQLite-backed upload service tests for allowed types, invalid/mismatched content, 25 MB boundary, required metadata, clean/infected/unavailable/inconclusive scanner outcomes, and storage/metadata failure compensation in `ContosoDashboard.Tests/DocumentManagement/DocumentUploadTests.cs` (depends on T018)
+- [X] T021 [P] [US1] Add SQLite-backed upload service tests for allowed types, invalid/mismatched content, 25 MB boundary, required metadata, clean/infected/unavailable/inconclusive scanner outcomes, and storage/metadata failure compensation in `ContosoDashboard.Tests/DocumentManagement/DocumentUploadTests.cs` (depends on T018)
 
 **Checkpoint**: A logged-in employee can complete and independently verify the upload workflow.
 
@@ -68,14 +68,14 @@
 
 ### Implementation
 
-- [ ] T022 [US2] Implement authorized paginated list, project list, sort, filter, and search queries across title, description, tags, uploader, and project in `ContosoDashboard/Services/DocumentService.cs` (depends on T018)
-- [ ] T023 [P] [US2] Extend `/documents` with My Documents listing, filters, sorting, pagination, search, and empty/error states in `ContosoDashboard/Pages/Documents.razor` (depends on T022)
-- [ ] T024 [P] [US2] Add authenticated download and PDF/JPEG/PNG preview routes that resolve only by document ID, re-check access, stream private bytes, set safe response headers, and record downloads in `ContosoDashboard/Program.cs` (depends on T022)
-- [ ] T025 [US2] Add an authorized project-documents list and download/preview links to project details in `ContosoDashboard/Pages/ProjectDetails.razor` (depends on T022-T024)
+- [X] T022 [US2] Implement authorized paginated list, project list, sort, filter, and search queries across title, description, tags, uploader, and project in `ContosoDashboard/Services/DocumentService.cs` (depends on T018)
+- [X] T023 [P] [US2] Extend `/documents` with My Documents listing, filters, sorting, pagination, search, and empty/error states in `ContosoDashboard/Pages/Documents.razor` (depends on T022)
+- [X] T024 [P] [US2] Add authenticated download and PDF/JPEG/PNG preview routes that resolve only by document ID, re-check access, stream private bytes, set safe response headers, and record downloads in `ContosoDashboard/Program.cs` (depends on T022)
+- [X] T025 [US2] Add an authorized project-documents list and download/preview links to project details in `ContosoDashboard/Pages/ProjectDetails.razor` (depends on T022-T024)
 
 ### Tests
 
-- [ ] T026 [US2] Add service tests for owner, recipient, project-member, project-manager, department-team, and administrator visibility, plus unauthorized list/search/download access in `ContosoDashboard.Tests/DocumentManagement/DocumentAccessTests.cs` (depends on T022-T024)
+- [X] T026 [US2] Add service tests for owner, recipient, project-member, project-manager, department-team, and administrator visibility, plus unauthorized list/search/download access in `ContosoDashboard.Tests/DocumentManagement/DocumentAccessTests.cs` (depends on T022-T024)
 
 **Checkpoint**: Users can discover and retrieve accessible files, while denied identities cannot infer or retrieve private content.
 
@@ -89,16 +89,16 @@
 
 ### Implementation
 
-- [ ] T027 [US3] Enforce owner, current-department Team Lead, project-manager, and administrator management rules in every document mutation in `ContosoDashboard/Services/DocumentService.cs`
-- [ ] T028 [US3] Implement authorized metadata updates for title, description, category, and tags with validation and activity recording in `ContosoDashboard/Services/DocumentService.cs` (depends on T027)
-- [ ] T029 [US3] Implement staged file replacement and confirmed permanent deletion with compensating filesystem cleanup and preserved deletion activity in `ContosoDashboard/Services/DocumentService.cs` and `ContosoDashboard/Services/LocalFileStorageService.cs` (depends on T027-T028)
-- [ ] T030 [US3] Implement user/department share creation and revocation, activity events, and share notifications; add DocumentShared notification type in `ContosoDashboard/Services/DocumentService.cs` and `ContosoDashboard/Models/Notification.cs` (depends on T027)
-- [ ] T031 [P] [US3] Add owner edit/replace/delete/share controls, validation, and deletion confirmation to `ContosoDashboard/Pages/Documents.razor` (depends on T028-T030)
-- [ ] T032 [P] [US3] Build Shared with Me for active direct and department shares and add its navigation link in `ContosoDashboard/Pages/SharedDocuments.razor` and `ContosoDashboard/Shared/NavMenu.razor` (depends on T030)
+- [X] T027 [US3] Enforce owner, current-department Team Lead, project-manager, and administrator management rules in every document mutation in `ContosoDashboard/Services/DocumentService.cs`
+- [X] T028 [US3] Implement authorized metadata updates for title, description, category, and tags with validation and activity recording in `ContosoDashboard/Services/DocumentService.cs` (depends on T027)
+- [X] T029 [US3] Implement staged file replacement and confirmed permanent deletion with compensating filesystem cleanup and preserved deletion activity in `ContosoDashboard/Services/DocumentService.cs` and `ContosoDashboard/Services/LocalFileStorageService.cs` (depends on T027-T028)
+- [X] T030 [US3] Implement user/department share creation and revocation, activity events, and share notifications; add DocumentShared notification type in `ContosoDashboard/Services/DocumentService.cs` and `ContosoDashboard/Models/Notification.cs` (depends on T027)
+- [X] T031 [P] [US3] Add owner edit/replace/delete/share controls, validation, and deletion confirmation to `ContosoDashboard/Pages/Documents.razor` (depends on T028-T030)
+- [X] T032 [P] [US3] Build Shared with Me for active direct and department shares and add its navigation link in `ContosoDashboard/Pages/SharedDocuments.razor` and `ContosoDashboard/Shared/NavMenu.razor` (depends on T030)
 
 ### Tests
 
-- [ ] T033 [US3] Add tests for owner-only edits, project-manager/team-lead scope, share/revoke access changes, notifications, replacement failure, deletion cleanup, and retained activity in `ContosoDashboard.Tests/DocumentManagement/DocumentManagementTests.cs` (depends on T027-T032)
+- [X] T033 [US3] Add tests for owner-only edits, project-manager/team-lead scope, share/revoke access changes, notifications, replacement failure, deletion cleanup, and retained activity in `ContosoDashboard.Tests/DocumentManagement/DocumentManagementTests.cs` (depends on T027-T032)
 
 **Checkpoint**: Authorized users can manage documents without granting recipients unintended mutation rights.
 
@@ -112,14 +112,14 @@
 
 ### Implementation
 
-- [ ] T034 [US4] Validate task access and task/project association consistency during document upload and attachment in `ContosoDashboard/Services/DocumentService.cs` (depends on T018, T022, T027)
-- [ ] T035 [P] [US4] Add a task details route with authorized document listing, attachment, and upload actions in `ContosoDashboard/Pages/TaskDetails.razor` (depends on T034)
-- [ ] T036 [P] [US4] Extend dashboard queries and UI with the current user's document count and five most recent uploads in `ContosoDashboard/Services/DashboardService.cs` and `ContosoDashboard/Pages/Index.razor` (depends on T022)
-- [ ] T037 [P] [US4] Notify relevant project members on project document upload and add DocumentAddedToProject notification type in `ContosoDashboard/Services/DocumentService.cs` and `ContosoDashboard/Models/Notification.cs` (depends on T030, T034)
+- [X] T034 [US4] Validate task access and task/project association consistency during document upload and attachment in `ContosoDashboard/Services/DocumentService.cs` (depends on T018, T022, T027)
+- [X] T035 [P] [US4] Add a task details route with authorized document listing, attachment, and upload actions in `ContosoDashboard/Pages/TaskDetails.razor` (depends on T034)
+- [X] T036 [P] [US4] Extend dashboard queries and UI with the current user's document count and five most recent uploads in `ContosoDashboard/Services/DashboardService.cs` and `ContosoDashboard/Pages/Index.razor` (depends on T022)
+- [X] T037 [P] [US4] Notify relevant project members on project document upload and add DocumentAddedToProject notification type in `ContosoDashboard/Services/DocumentService.cs` and `ContosoDashboard/Models/Notification.cs` (depends on T030, T034)
 
 ### Tests
 
-- [ ] T038 [US4] Add tests for task/project association, task access enforcement, user-scoped dashboard results, and project-member upload notifications in `ContosoDashboard.Tests/DocumentManagement/DocumentContextTests.cs` (depends on T034-T037)
+- [X] T038 [US4] Add tests for task/project association, task access enforcement, user-scoped dashboard results, and project-member upload notifications in `ContosoDashboard.Tests/DocumentManagement/DocumentContextTests.cs` (depends on T034-T037)
 
 **Checkpoint**: Document workflows are available in their task/project context and dashboard summaries remain user-scoped.
 
@@ -133,13 +133,13 @@
 
 ### Implementation
 
-- [ ] T039 [US5] Implement administrator-scoped activity queries and aggregates for file types, uploaders, and access patterns in `ContosoDashboard/Services/DocumentService.cs` (depends on T018, T024, T029-T030, T037)
-- [ ] T040 [P] [US5] Build the administrator document activity/report page with report summaries and access-denied behavior in `ContosoDashboard/Pages/DocumentReports.razor` (depends on T039)
-- [ ] T041 [P] [US5] Apply the existing Administrator authorization policy to the report route and enforce administrator checks in the service in `ContosoDashboard/Program.cs` and `ContosoDashboard/Services/DocumentService.cs` (depends on T039)
+- [X] T039 [US5] Implement administrator-scoped activity queries and aggregates for file types, uploaders, and access patterns in `ContosoDashboard/Services/DocumentService.cs` (depends on T018, T024, T029-T030, T037)
+- [X] T040 [P] [US5] Build the administrator document activity/report page with report summaries and access-denied behavior in `ContosoDashboard/Pages/DocumentReports.razor` (depends on T039)
+- [X] T041 [P] [US5] Apply the existing Administrator authorization policy to the report route and enforce administrator checks in the service in `ContosoDashboard/Program.cs` and `ContosoDashboard/Services/DocumentService.cs` (depends on T039)
 
 ### Tests
 
-- [ ] T042 [US5] Add tests for activity coverage, report aggregation, retained deletion events, and denial of report data to non-administrators in `ContosoDashboard.Tests/DocumentManagement/DocumentReportsTests.cs` (depends on T039-T041)
+- [X] T042 [US5] Add tests for activity coverage, report aggregation, retained deletion events, and denial of report data to non-administrators in `ContosoDashboard.Tests/DocumentManagement/DocumentReportsTests.cs` (depends on T039-T041)
 
 **Checkpoint**: Administrators can inspect audit summaries, and other roles cannot retrieve report data.
 
@@ -149,9 +149,9 @@
 
 **Purpose**: Complete developer guidance and run feature-wide validation.
 
-- [ ] T043 Update .NET 10/SQLite prerequisites and document private storage, scan warnings, offline limits, and test commands in `README.md`
-- [ ] T044 Complete run, migration-adoption, manual scenario, and performance-measurement instructions in `specs/001-document-management/quickstart.md`
-- [ ] T045 Run the application build and focused test project, fixing failures in `ContosoDashboard/ContosoDashboard.csproj` and `ContosoDashboard.Tests/ContosoDashboard.Tests.csproj`
+- [X] T043 Update .NET 10/SQLite prerequisites and document private storage, scan warnings, offline limits, and test commands in `README.md`
+- [X] T044 Complete run, migration-adoption, manual scenario, and performance-measurement instructions in `specs/001-document-management/quickstart.md`
+- [X] T045 Run the application build and focused test project, fixing failures in `ContosoDashboard/ContosoDashboard.csproj` and `ContosoDashboard.Tests/ContosoDashboard.Tests.csproj`
 - [ ] T046 Measure upload, 500-document list/search, and preview targets in the documented training environment and record results in `specs/001-document-management/quickstart.md`
 
 ---
