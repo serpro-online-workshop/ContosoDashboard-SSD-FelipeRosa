@@ -5,6 +5,12 @@
 **Status**: Draft  
 **Input**: Stakeholder requirements from `StakeholderDocs/document-upload-and-management-feature.md`
 
+## Clarifications
+
+### Session 2026-10-20
+
+- Q: Which malware-scanning policy should the offline upload feature require? → A: Warn and allow uploads when scanning is unavailable or inconclusive; continue to reject files reported as infected.
+
 ## User Scenarios & Testing *(mandatory)*
 
 ### User Story 1 - Upload a Work Document (Priority: P1)
@@ -18,7 +24,7 @@ An employee uploads one or more work-related files, gives each a title and categ
 **Acceptance Scenarios**:
 
 1. **Given** an authenticated employee has selected supported files no larger than 25 MB each and supplied a title and category, **When** the employee uploads them, **Then** the application shows progress and a success result, and each document is available to authorized users with its title, category, uploader, upload time, size, and file type.
-2. **Given** a selected file is unsupported, exceeds the size limit, or is reported infected or cannot be scanned, **When** the employee submits the upload, **Then** the application explains the failure and does not make the file available as a document.
+2. **Given** a selected file is unsupported, exceeds the size limit, or is reported infected, **When** the employee submits the upload, **Then** the application explains the failure and does not make the file available as a document. If scanning is unavailable or inconclusive, the application warns the employee and allows the upload to continue.
 3. **Given** the employee omits a required title or category, **When** the employee attempts to upload, **Then** the application identifies the missing information and does not accept the file.
 
 ---
@@ -91,7 +97,7 @@ An administrator reviews document activity and produces reports that help identi
 - A multi-file upload contains both valid and invalid files; each file receives an unambiguous result and an invalid file is never made available.
 - A file is exactly 25 MB, or exceeds the limit by one byte.
 - A file's extension and reported file type disagree, or its content cannot be safely previewed.
-- Malware scanning is unavailable, inconclusive, or reports a threat; the file remains unavailable and the user receives a clear result.
+- Malware scanning reports a threat; the file remains unavailable. If scanning is unavailable or inconclusive, the user receives a warning and may continue with the upload.
 - A user loses project or team access after a document was shared or listed; subsequent access and search results respect the current permissions.
 - A project or task is removed or is unavailable when a document is being associated with it.
 - A file save, replacement, metadata update, or deletion fails partway through; users must not see a successful operation that leaves a missing or incorrectly accessible document.
@@ -107,7 +113,7 @@ An administrator reviews document activity and produces reports that help identi
 - **FR-003**: The system MUST reject any file larger than 25 MB and clearly report unsupported or invalid files.
 - **FR-004**: The system MUST require a document title and one category from Project Documents, Team Resources, Personal Files, Reports, Presentations, or Other; description, project association, and tags MUST be optional.
 - **FR-005**: The system MUST record the uploader, upload date and time, file size, and file type for each accepted document.
-- **FR-006**: The system MUST scan each file for malware before making it available. A file reported infected or not conclusively scanned MUST remain unavailable, and the user MUST receive a clear result.
+- **FR-006**: The system MUST scan each file for malware when a scanner is available. A file reported infected MUST remain unavailable. If scanning is unavailable or inconclusive, the system MUST warn the user and allow the upload to continue.
 - **FR-007**: The system MUST show upload progress and a clear success or failure result for each file.
 - **FR-008**: The system MUST restrict document discovery and content access to the owner, explicitly authorized recipients, project members with access to the associated project, team leads within their team scope, and administrators according to their permissions.
 - **FR-009**: The system MUST provide My Documents with title, category, upload date, file size, and associated project, and allow sorting by title, upload date, category, and file size.
@@ -155,7 +161,7 @@ An administrator reviews document activity and produces reports that help identi
 - The feature is for the existing training application and retains its mock authentication; it does not add production identity or compliance guarantees.
 - “Team” means employees in the same department because the current application groups its team directory by department. Team-lead document access and management are limited to documents uploaded by users in that department.
 - Personal documents are visible only to their owner, explicitly shared recipients, and administrators. Project documents are visible to authorized project members and administrators.
-- A local malware-scanning capability is available in the training environment. If it is unavailable or returns an inconclusive result, the system fails closed and does not make the document available.
+- A local malware-scanning capability may be unavailable in the offline training environment. When scanning is unavailable or inconclusive, the system warns the user and allows the upload to continue; files reported infected are rejected.
 - Shared access remains active until the owner revokes it or an administrator removes it.
 - The representative training environment for performance measures will be agreed and documented during planning; no cloud service is required for these measures.
 - Replacing a file updates the current document; historical versions and rollback are not required.
